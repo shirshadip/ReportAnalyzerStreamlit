@@ -6,12 +6,13 @@ from openpyxl.utils import get_column_letter
 from openpyxl.chart import BarChart, Reference
 
 
-SUBJECTS = ["math", "physics", "cs", "english"]
+SUBJECTS = ["1st-subject", "2nd-subject", "3rd-subject", "4th-subject", "5th-subject"]
 SUBJECT_LABELS = {
-    "math": "Mathematics",
-    "physics": "Physics",
-    "cs": "Computer Science",
-    "english": "English",
+    "1st-subject": "1st Subject",
+    "2nd-subject": "2nd Subject",
+    "3rd-subject": "3rd Subject",
+    "4th-subject": "4th Subject",
+    "5th-subject": "5th Subject",
 }
 MAX_MARKS_PER_SUBJECT = 100
 TOTAL_MAX = MAX_MARKS_PER_SUBJECT * len(SUBJECTS)
@@ -48,7 +49,8 @@ class StudentAnalyzer:
         df = self.df
 
         ranked_students = df[[
-            "id", "name", "math", "physics", "cs", "english",
+            "id", "name",
+            "1st-subject", "2nd-subject", "3rd-subject", "4th-subject", "5th-subject",
             "total", "percentage", "grade", "rank"
         ]].to_dict(orient="records")
 
@@ -91,12 +93,12 @@ class StudentAnalyzer:
                 "pass_count":               pass_count,
                 "fail_count":               fail_count,
             },
-            "topper":          topper,
-            "highest_scorer":  highest,
-            "lowest_scorer":   lowest,
-            "subject_averages": subject_averages,
+            "topper":             topper,
+            "highest_scorer":     highest,
+            "lowest_scorer":      lowest,
+            "subject_averages":   subject_averages,
             "grade_distribution": grade_dist,
-            "ranked_students": ranked_students,
+            "ranked_students":    ranked_students,
         }
 
     def _build_workbook(self) -> Workbook:
@@ -134,12 +136,12 @@ class StudentAnalyzer:
         ws1.row_dimensions[2].height = 22
 
         metrics = [
-            ("Class Average %",    f"{analysis['summary']['class_average_percentage']}%"),
-            ("Class Average Total", f"{analysis['summary']['class_average_total']} / {TOTAL_MAX}"),
-            ("Highest %",          f"{analysis['summary']['highest_percentage']}%"),
-            ("Lowest %",           f"{analysis['summary']['lowest_percentage']}%"),
-            ("Students Passed",     analysis["summary"]["pass_count"]),
-            ("Students Failed",     analysis["summary"]["fail_count"]),
+            ("Class Average %",     f"{analysis['summary']['class_average_percentage']}%"),
+            ("Class Average Total",  f"{analysis['summary']['class_average_total']} / {TOTAL_MAX}"),
+            ("Highest %",           f"{analysis['summary']['highest_percentage']}%"),
+            ("Lowest %",            f"{analysis['summary']['lowest_percentage']}%"),
+            ("Students Passed",      analysis["summary"]["pass_count"]),
+            ("Students Failed",      analysis["summary"]["fail_count"]),
         ]
 
         row = 4
@@ -215,19 +217,20 @@ class StudentAnalyzer:
 
         # ── Sheet 2: Ranked Students ──
         ws2 = wb.create_sheet("Ranked Students")
-        for i, w in enumerate([8, 22, 14, 14, 14, 14, 14, 14, 10, 8], 1):
+        # Rank, Name, 5 subjects, Total, Percentage, Grade, ID = 11 columns
+        for i, w in enumerate([8, 22, 14, 14, 14, 14, 14, 14, 14, 10, 8], 1):
             ws2.column_dimensions[get_column_letter(i)].width = w
 
-        ws2.merge_cells("A1:J1")
+        ws2.merge_cells("A1:K1")
         ws2["A1"] = "STUDENT PERFORMANCE — RANKED LIST"
         ws2["A1"].font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
         ws2["A1"].fill = header_fill
         ws2["A1"].alignment = center
         ws2.row_dimensions[1].height = 32
 
-        for col, h in enumerate(
-            ["Rank","Name","Math","Physics","CS","English","Total","Percentage","Grade","ID"], 1
-        ):
+        headers = ["Rank", "Name", "1st Subject", "2nd Subject", "3rd Subject",
+                   "4th Subject", "5th Subject", "Total", "Percentage", "Grade", "ID"]
+        for col, h in enumerate(headers, 1):
             cell = ws2.cell(row=2, column=col, value=h)
             cell.font = header_font
             cell.fill = header_fill
@@ -237,22 +240,30 @@ class StudentAnalyzer:
 
         topper_fill = PatternFill("solid", fgColor="FFF9C4")
         for i, student in enumerate(analysis["ranked_students"]):
-            row_num = i + 3
+            row_num  = i + 3
             is_topper = student["rank"] == 1
             row_fill  = topper_fill if is_topper else (highlight_fill if i % 2 == 0 else white_fill)
-            for col, val in enumerate([
-                student["rank"], student["name"],
-                student["math"], student["physics"],
-                student["cs"],   student["english"],
-                student["total"], f"{student['percentage']}%",
-                student["grade"], student["id"],
-            ], 1):
+            values = [
+                student["rank"],
+                student["name"],
+                student["1st-subject"],
+                student["2nd-subject"],
+                student["3rd-subject"],
+                student["4th-subject"],
+                student["5th-subject"],
+                student["total"],
+                f"{student['percentage']}%",
+                student["grade"],
+                student["id"],
+            ]
+            for col, val in enumerate(values, 1):
                 cell = ws2.cell(row=row_num, column=col, value=val)
                 cell.border = thin_border
                 cell.alignment = center
                 cell.fill = row_fill
                 cell.font = Font(name="Calibri", bold=is_topper, size=11)
-                if col == 8:
+                # Colour-code the Percentage column (col 9)
+                if col == 9:
                     pct = student["percentage"]
                     if pct >= 80:
                         cell.font = Font(name="Calibri", bold=True, color="1B5E20", size=11)
@@ -302,8 +313,8 @@ class StudentAnalyzer:
         chart.x_axis.title = "Grade"
         chart.add_data(Reference(ws3, min_col=2, min_row=2, max_row=9), titles_from_data=True)
         chart.set_categories(Reference(ws3, min_col=1, min_row=3, max_row=9))
-        chart.shape = 4
-        chart.width = 18
+        chart.shape  = 4
+        chart.width  = 18
         chart.height = 12
         ws3.add_chart(chart, "E2")
 

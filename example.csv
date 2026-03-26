@@ -1,9 +1,9 @@
-name,math,physics,cs,english
-Alex Johnson,78,65,89,70
-Bob Smith,90,88,95,85
-Charlie Brown,55,60,58,62
-David Lee,40,42,38,45
-Emma Watson,95,92,98,94
-John Doe,30,35,25,40
-Sophia Roy,85,80,88,82
-Arjun Das,70,75,72,68
+name,1st-subject,2nd-subject,3rd-subject,4th-subject,5th-subject
+Alex Johnson,78,65,89,70,00
+Bob Smith,90,88,95,85,00
+Charlie Brown,55,60,58,62,00
+David Lee,40,42,38,45,00
+Emma Watson,95,92,98,94,00
+John Doe,30,35,25,40,00
+Sophia Roy,85,80,88,82,00
+Arjun Das,70,75,72,68,00

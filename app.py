@@ -10,7 +10,7 @@ from analysis import StudentAnalyzer, SUBJECTS, TOTAL_MAX
 # ── Local in-memory storage ───────────────────────────────
 if "students" not in st.session_state:
     st.session_state["students"] = pd.DataFrame(
-        columns=["id", "name", "math", "physics", "cs", "english"]
+        columns=["id", "name", "1st-subject", "2nd-subject", "3rd-subject", "4th-subject", "5th-subject"]
     )
 
 # ── Page config ────────────────────────────────────────────────────────────
@@ -81,12 +81,6 @@ html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
 }
 </style>
 """, unsafe_allow_html=True)
-
-
-# ── Supabase connection ────────────────────────────────────────────────────
-# Lazy init: client is only created when first needed, not on app startup.
-# This prevents the app from spinning forever if secrets are missing.
-
 
 
 # ── Helper: metric card HTML ───────────────────────────────────────────────
@@ -184,7 +178,7 @@ if page == "📊 Dashboard":
     with col_l:
         st.markdown('<div class="section-header">Subject Averages</div>', unsafe_allow_html=True)
         subj_df = pd.DataFrame([
-            {"Subject": k.replace("Computer Science", "CS"), "Average": v}
+            {"Subject": k, "Average": v}
             for k, v in analysis["subject_averages"].items()
         ])
         fig_subj = px.bar(
@@ -236,7 +230,7 @@ if page == "📊 Dashboard":
     with col_l2:
         st.markdown('<div class="section-header">Subject Radar</div>', unsafe_allow_html=True)
         subj_avgs = analysis["subject_averages"]
-        labels = [k.replace("Computer Science", "CS") for k in subj_avgs.keys()]
+        labels = list(subj_avgs.keys())
         values = list(subj_avgs.values())
         fig_radar = go.Figure(go.Scatterpolar(
             r=values + [values[0]],
@@ -281,8 +275,8 @@ if page == "📊 Dashboard":
     st.markdown('<div class="section-header">Student Rankings</div>', unsafe_allow_html=True)
 
     ranked = pd.DataFrame(analysis["ranked_students"])
-    display_df = ranked[["rank", "name", "math", "physics", "cs", "english", "total", "percentage", "grade"]].copy()
-    display_df.columns = ["Rank", "Name", "Math", "Physics", "CS", "English", "Total", "%", "Grade"]
+    display_df = ranked[["rank", "name", "1st-subject", "2nd-subject", "3rd-subject", "4th-subject", "5th-subject", "total", "percentage", "grade"]].copy()
+    display_df.columns = ["Rank", "Name", "1st-subject", "2nd-subject", "3rd-subject", "4th-subject", "5th-subject", "Total", "%", "Grade"]
 
     def color_pct(val):
         if val >= 80: return "color: #2ecc71; font-weight: 700"
@@ -308,7 +302,7 @@ if page == "📊 Dashboard":
         }])
         .highlight_max(subset=["Total"], color="rgba(46,204,113,0.15)")
         .highlight_min(subset=["Total"], color="rgba(231,76,60,0.1)")
-        .format({"%" : "{:.2f}"})
+        .format({"%": "{:.2f}"})
     )
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
@@ -334,16 +328,18 @@ elif page == "➕ Add Students":
     with st.form("add_student_form", clear_on_submit=True):
         name = st.text_input("Student Name", placeholder="e.g. Alex Johnson")
 
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
-            math    = st.number_input("Mathematics", min_value=0, max_value=100, step=1)
-            cs      = st.number_input("Computer Science", min_value=0, max_value=100, step=1)
+            s1 = st.number_input("1st-subject", min_value=0, max_value=100, step=1)
+            s2 = st.number_input("2nd-subject", min_value=0, max_value=100, step=1)
         with c2:
-            physics = st.number_input("Physics", min_value=0, max_value=100, step=1)
-            english = st.number_input("English", min_value=0, max_value=100, step=1)
+            s3 = st.number_input("3rd-subject", min_value=0, max_value=100, step=1)
+            s4 = st.number_input("4th-subject", min_value=0, max_value=100, step=1)
+        with c3:
+            s5 = st.number_input("5th-subject", min_value=0, max_value=100, step=1)
 
         # Live preview
-        total = math + physics + cs + english
+        total = s1 + s2 + s3 + s4 + s5
         pct   = round(total / TOTAL_MAX * 100, 2)
         st.info(f"**Preview →** Total: {total} / {TOTAL_MAX} &nbsp;|&nbsp; Percentage: {pct}%")
 
@@ -355,15 +351,16 @@ elif page == "➕ Add Students":
                 try:
                     df = st.session_state["students"]
 
-                    new_id = 1 if df.empty else df["id"].max() + 1
+                    new_id = 1 if df.empty else int(df["id"].max()) + 1
 
                     new_row = pd.DataFrame([{
                         "id": new_id,
                         "name": name,
-                        "math": int(math),
-                        "physics": int(physics),
-                        "cs": int(cs),
-                        "english": int(english),
+                        "1st-subject": int(s1),
+                        "2nd-subject": int(s2),
+                        "3rd-subject": int(s3),
+                        "4th-subject": int(s4),
+                        "5th-subject": int(s5),
                     }])
 
                     st.session_state["students"] = pd.concat([df, new_row], ignore_index=True)
@@ -382,9 +379,9 @@ elif page == "📥 Upload CSV":
     st.markdown("""
     Upload a `.csv` file with the following columns:
     ```
-    name,math,physics,cs,english
-    Alex,78,65,89,70
-    Bob,90,88,95,85
+    name,1st-subject,2nd-subject,3rd-subject,4th-subject,5th-subject
+    Alex,78,65,89,70,82
+    Bob,90,88,95,85,91
     ```
     """)
 
@@ -392,21 +389,25 @@ elif page == "📥 Upload CSV":
 
     if uploaded:
         try:
-            df = pd.read_csv(uploaded)
-            required = {"name", "math", "physics", "cs", "english"}
-
-            if not required.issubset(set(df.columns.str.lower())):
-                st.error(f"CSV must contain columns: {required}")
+            if uploaded.name.endswith(".xlsx"):
+                df = pd.read_excel(uploaded)
             else:
-                df.columns = df.columns.str.lower()
-                df = df[["name", "math", "physics", "cs", "english"]]
+                df = pd.read_csv(uploaded)
+
+            df.columns = df.columns.str.lower().str.strip()
+            required = {"name", "1st-subject", "2nd-subject", "3rd-subject", "4th-subject", "5th-subject"}
+
+            if not required.issubset(set(df.columns)):
+                st.error(f"File must contain columns: {required}")
+            else:
+                df = df[["name", "1st-subject", "2nd-subject", "3rd-subject", "4th-subject", "5th-subject"]]
 
                 st.subheader(f"Preview — {len(df)} students")
                 st.dataframe(df, use_container_width=True, hide_index=True)
 
                 if st.button("⬆️ Upload to Database", use_container_width=True, type="primary"):
                     records = df.to_dict(orient="records")
-                    df["id"] = range(1, len(df) + 1)
+                    df.insert(0, "id", range(1, len(df) + 1))
                     st.session_state["students"] = df
                     st.cache_data.clear()
                     st.success(f"✅ Successfully uploaded **{len(records)} students**!")
@@ -429,7 +430,7 @@ elif page == "🗑️ Manage Students":
         st.stop()
 
     st.dataframe(
-        raw_df[["id", "name", "math", "physics", "cs", "english"]],
+        raw_df[["id", "name", "1st-subject", "2nd-subject", "3rd-subject", "4th-subject", "5th-subject"]],
         use_container_width=True, hide_index=True
     )
 
@@ -441,6 +442,7 @@ elif page == "🗑️ Manage Students":
 
     if st.button("🗑️ Delete Student", type="primary"):
         try:
+            student_id = name_map[selected]
             df = st.session_state["students"]
             st.session_state["students"] = df[df["id"] != student_id].reset_index(drop=True)
             st.cache_data.clear()
@@ -456,8 +458,10 @@ elif page == "🗑️ Manage Students":
         if st.button("🗑️ Clear All", type="primary"):
             try:
                 st.session_state["students"] = pd.DataFrame(
-    columns=["id", "name", "math", "physics", "cs", "english"]
-)
-                st.session_state["students"] = st.session_state["students"]
+                    columns=["id", "name", "1st-subject", "2nd-subject", "3rd-subject", "4th-subject", "5th-subject"]
+                )
+                st.cache_data.clear()
+                st.success("All student records cleared.")
+                st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
