@@ -5,8 +5,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import io
-from supabase import create_client, Client
 from analysis import StudentAnalyzer, SUBJECTS, TOTAL_MAX
+
+# ── Local in-memory storage ───────────────────────────────
+if "students" not in st.session_state:
+    st.session_state["students"] = pd.DataFrame(
+        columns=["id", "name", "math", "physics", "cs", "english"]
+    )
 
 # ── Page config ────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -81,55 +86,7 @@ html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
 # ── Supabase connection ────────────────────────────────────────────────────
 # Lazy init: client is only created when first needed, not on app startup.
 # This prevents the app from spinning forever if secrets are missing.
-_supabase_client: Client | None = None
 
-def get_supabase() -> Client:
-    global _supabase_client
-    if _supabase_client is not None:
-        return _supabase_client
-    try:
-        url = st.secrets["SUPABASE_URL"]
-        key = st.secrets["SUPABASE_KEY"]
-    except KeyError:
-        st.error(
-            "⚠️ **Supabase secrets not found.** "
-            "Go to **App Settings → Secrets** and add:\n\n"
-            "```toml\nSUPABASE_URL = '...'\nSUPABASE_KEY = '...'\n```"
-        )
-        st.stop()
-    try:
-        _supabase_client = create_client(url, key)
-        return _supabase_client
-    except Exception as e:
-        st.error(f"⚠️ **Could not connect to Supabase:** {e}")
-        st.stop()
-
-
-def fetch_students() -> pd.DataFrame:
-    try:
-        sb   = get_supabase()
-        resp = sb.table("students").select("*").execute()
-        if not resp.data:
-            return pd.DataFrame(columns=["id", "name", "math", "physics", "cs", "english"])
-        return pd.DataFrame(resp.data)
-    except Exception as e:
-        st.error(f"⚠️ **Failed to fetch students:** {e}")
-        st.stop()
-
-
-def add_student(name, math, physics, cs, english):
-    get_supabase().table("students").insert({
-        "name": name, "math": math,
-        "physics": physics, "cs": cs, "english": english
-    }).execute()
-
-
-def delete_student(student_id: int):
-    get_supabase().table("students").delete().eq("id", student_id).execute()
-
-
-def bulk_insert(records: list):
-    get_supabase().table("students").insert(records).execute()
 
 
 # ── Helper: metric card HTML ───────────────────────────────────────────────
@@ -161,10 +118,9 @@ with st.sidebar:
 
 
 # ── Cache the raw data (cleared on refresh) ───────────────────────────────
-@st.cache_data
 def get_analysis():
-    df = fetch_students()
-    if df.empty or len(df) == 0:
+    df = st.session_state["students"]
+    if df.empty:
         return None, df
     analyzer = StudentAnalyzer(df)
     return analyzer.full_analysis(), df
@@ -397,7 +353,20 @@ elif page == "➕ Add Students":
                 st.error("Name is required.")
             else:
                 try:
-                    add_student(name.strip(), int(math), int(physics), int(cs), int(english))
+                    df = st.session_state["students"]
+
+                    new_id = 1 if df.empty else df["id"].max() + 1
+
+                    new_row = pd.DataFrame([{
+                        "id": new_id,
+                        "name": name,
+                        "math": int(math),
+                        "physics": int(physics),
+                        "cs": int(cs),
+                        "english": int(english),
+                    }])
+
+                    st.session_state["students"] = pd.concat([df, new_row], ignore_index=True)
                     st.cache_data.clear()
                     st.success(f"✅ **{name}** added successfully!")
                 except Exception as e:
@@ -408,7 +377,7 @@ elif page == "➕ Add Students":
 # PAGE: UPLOAD CSV
 # ═══════════════════════════════════════════════════════════════════════════
 elif page == "📥 Upload CSV":
-    st.title("Upload CSV")
+    st.title("Upload CSV or xlsx")
 
     st.markdown("""
     Upload a `.csv` file with the following columns:
@@ -419,7 +388,7 @@ elif page == "📥 Upload CSV":
     ```
     """)
 
-    uploaded = st.file_uploader("Choose a CSV file", type=["csv"])
+    uploaded = st.file_uploader("Upload CSV or Excel file", type=["csv", "xlsx"])
 
     if uploaded:
         try:
@@ -437,7 +406,8 @@ elif page == "📥 Upload CSV":
 
                 if st.button("⬆️ Upload to Database", use_container_width=True, type="primary"):
                     records = df.to_dict(orient="records")
-                    bulk_insert(records)
+                    df["id"] = range(1, len(df) + 1)
+                    st.session_state["students"] = df
                     st.cache_data.clear()
                     st.success(f"✅ Successfully uploaded **{len(records)} students**!")
                     st.balloons()
@@ -471,7 +441,8 @@ elif page == "🗑️ Manage Students":
 
     if st.button("🗑️ Delete Student", type="primary"):
         try:
-            delete_student(name_map[selected])
+            df = st.session_state["students"]
+            st.session_state["students"] = df[df["id"] != student_id].reset_index(drop=True)
             st.cache_data.clear()
             st.success(f"Deleted **{selected}**")
             st.rerun()
@@ -484,10 +455,9 @@ elif page == "🗑️ Manage Students":
     if confirm:
         if st.button("🗑️ Clear All", type="primary"):
             try:
-                sb = get_supabase()
-                sb.table("students").delete().neq("id", 0).execute()
-                st.cache_data.clear()
-                st.success("All records cleared.")
-                st.rerun()
+                st.session_state["students"] = pd.DataFrame(
+    columns=["id", "name", "math", "physics", "cs", "english"]
+)
+                st.session_state["students"] = st.session_state["students"]
             except Exception as e:
                 st.error(f"Error: {e}")
