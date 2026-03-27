@@ -465,3 +465,8 @@ elif page == "🗑️ Manage Students":
                 st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
+                
+st.markdown("""
+            ---
+            <p>&copy 2026,shirshadip</p>
+            """,unsafe_allow_html=True)
